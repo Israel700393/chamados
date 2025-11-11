@@ -1,905 +1,734 @@
-// Sistema de Chamados - FUNDAÇÃO UNISELVA
-class SistemaChamados {
-    constructor() {
-        this.currentUser = null;
-        this.token = localStorage.getItem('token');
-        this.apiUrl = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3001/api' 
-            : '/api';
-        
-        this.init();
-    }
+// Sistema de Chamados NPD - Fundação Uniselva
+// Armazenamento Local
+let currentUser = null;
+let tickets = [];
+let ticketCounter = 1;
+const ADMIN_PASSWORD = 'npd2024'; // Senha padrão do admin
 
-    init() {
-        this.bindEvents();
-        this.checkAuthStatus();
-        this.updateStats();
-    }
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    loadData();
+    loadTheme();
+    checkLogin();
+    
+    // Event Listeners
+    document.getElementById('newTicketForm').addEventListener('submit', createTicket);
+});
 
-    bindEvents() {
-        // Login Modal
-        const loginBtn = document.getElementById('loginBtn');
-        const loginModal = document.getElementById('loginModal');
-        const loginForm = document.getElementById('loginForm');
-        const logoutBtn = document.getElementById('logoutBtn');
-        
-        // Navigation
-        const novoChamadoBtn = document.getElementById('novoChamadoBtn');
-        const meusChamadosBtn = document.getElementById('meusChamadosBtn');
-        const gerenciarChamadosBtn = document.getElementById('gerenciarChamadosBtn');
-        const voltarDashboard = document.getElementById('voltarDashboard');
-        const voltarDashboardGerenciar = document.getElementById('voltarDashboardGerenciar');
-        
-        // Forms
-        const chamadoForm = document.getElementById('chamadoForm');
-        const statusForm = document.getElementById('statusForm');
-        const comentarioForm = document.getElementById('comentarioForm');
-        
-        // Modals
-        const successModal = document.getElementById('successModal');
-        const statusModal = document.getElementById('statusModal');
-        const comentarioModal = document.getElementById('comentarioModal');
-        const okBtn = document.getElementById('okBtn');
-        const cancelarStatus = document.getElementById('cancelarStatus');
-        const cancelarComentario = document.getElementById('cancelarComentario');
-        
-        // Close buttons
-        const closeButtons = document.querySelectorAll('.close');
+// Carregar dados do localStorage
+function loadData() {
+    const savedUser = localStorage.getItem('npd_currentUser');
+    const savedTickets = localStorage.getItem('npd_tickets');
+    const savedCounter = localStorage.getItem('npd_ticketCounter');
+    
+    if (savedUser) currentUser = JSON.parse(savedUser);
+    if (savedTickets) tickets = JSON.parse(savedTickets);
+    if (savedCounter) ticketCounter = parseInt(savedCounter);
+}
 
-        // Event Listeners
-        loginBtn?.addEventListener('click', () => this.showModal(loginModal));
-        logoutBtn?.addEventListener('click', () => this.logout());
-        loginForm?.addEventListener('submit', (e) => this.handleLogin(e));
+// Salvar dados no localStorage
+function saveData() {
+    localStorage.setItem('npd_currentUser', JSON.stringify(currentUser));
+    localStorage.setItem('npd_tickets', JSON.stringify(tickets));
+    localStorage.setItem('npd_ticketCounter', ticketCounter.toString());
+}
+
+// Verificar login
+function checkLogin() {
+    if (currentUser) {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('userName').textContent = currentUser.name;
         
-        novoChamadoBtn?.addEventListener('click', () => this.showNovoChamado());
-        meusChamadosBtn?.addEventListener('click', () => this.showMeusChamados());
-        gerenciarChamadosBtn?.addEventListener('click', () => this.showGerenciarChamados());
-        voltarDashboard?.addEventListener('click', () => this.showDashboard());
-        voltarDashboardGerenciar?.addEventListener('click', () => this.showDashboard());
-        
-        chamadoForm?.addEventListener('submit', (e) => this.handleNovoChamado(e));
-        statusForm?.addEventListener('submit', (e) => this.handleStatusUpdate(e));
-        comentarioForm?.addEventListener('submit', (e) => this.handleComentario(e));
-        
-        okBtn?.addEventListener('click', () => {
-            this.hideModal(successModal);
-            this.showDashboard();
-        });
-        
-        cancelarStatus?.addEventListener('click', () => this.hideModal(statusModal));
-        cancelarComentario?.addEventListener('click', () => this.hideModal(comentarioModal));
-        
-        closeButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const modal = e.target.closest('.modal');
-                this.hideModal(modal);
-            });
-        });
-
-        // Close modal on outside click
-        window.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal')) {
-                this.hideModal(e.target);
-            }
-        });
-
-        // Filtros
-        const filtroStatus = document.getElementById('filtroStatus');
-        const filtroCategoria = document.getElementById('filtroCategoria');
-        const filtroPrioridade = document.getElementById('filtroPrioridade');
-
-        filtroStatus?.addEventListener('change', () => this.applyFilters());
-        filtroCategoria?.addEventListener('change', () => this.applyFilters());
-        filtroPrioridade?.addEventListener('change', () => this.applyFilters());
-    }
-
-    showModal(modal) {
-        if (modal) {
-            modal.style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        }
-    }
-
-    hideModal(modal) {
-        if (modal) {
-            modal.style.display = 'none';
-            document.body.style.overflow = 'auto';
-        }
-    }
-
-    async handleLogin(e) {
-        e.preventDefault();
-        
-        const usuario = document.getElementById('usuario').value;
-        const senha = document.getElementById('senha').value;
-        
-        try {
-            const response = await fetch(`${this.apiUrl}/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ usuario, senha })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.token = data.token;
-                this.currentUser = data.user;
-                
-                localStorage.setItem('token', this.token);
-                localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-                
-                this.hideModal(document.getElementById('loginModal'));
-                this.showDashboard();
-                this.updateAuthUI();
-                
-                // Reset form
-                document.getElementById('loginForm').reset();
-            } else {
-                alert(data.error || 'Erro ao fazer login');
-            }
-        } catch (error) {
-            console.error('Erro no login:', error);
-            alert('Erro de conexão. Verifique sua internet e tente novamente.');
-        }
-    }
-
-    logout() {
-        this.currentUser = null;
-        this.token = null;
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('token');
-        this.updateAuthUI();
-        this.showWelcome();
-    }
-
-    checkAuthStatus() {
-        const savedUser = localStorage.getItem('currentUser');
-        const savedToken = localStorage.getItem('token');
-        
-        if (savedUser && savedToken) {
-            this.currentUser = JSON.parse(savedUser);
-            this.token = savedToken;
-            this.showDashboard();
-            this.updateAuthUI();
+        // Mostrar badge de admin se for NPD
+        const badge = document.getElementById('userBadge');
+        if (currentUser.isAdmin) {
+            badge.style.display = 'inline-block';
+            // Esconder aba "Novo Chamado" para admin
+            document.querySelectorAll('.tab-btn')[0].style.display = 'none';
+            document.getElementById('novoTab').style.display = 'none';
+            // Mostrar "Todos os Chamados" por padrão para admin
+            showTab('todos');
         } else {
-            this.showWelcome();
-        }
-    }
-
-    updateAuthUI() {
-        const loginBtn = document.getElementById('loginBtn');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const userWelcome = document.getElementById('userWelcome');
-        const gerenciarChamadosBtn = document.getElementById('gerenciarChamadosBtn');
-        
-        if (this.currentUser) {
-            loginBtn.style.display = 'none';
-            logoutBtn.style.display = 'inline-flex';
-            if (userWelcome) {
-                userWelcome.textContent = `Bem-vindo, ${this.currentUser.nome}`;
-            }
-            
-            // Mostrar botão de gerenciar apenas para NPD
-            if (gerenciarChamadosBtn) {
-                gerenciarChamadosBtn.style.display = this.currentUser.setor === 'NPD' ? 'inline-flex' : 'none';
-            }
-        } else {
-            loginBtn.style.display = 'inline-flex';
-            logoutBtn.style.display = 'none';
-            if (userWelcome) {
-                userWelcome.textContent = '';
-            }
-            if (gerenciarChamadosBtn) {
-                gerenciarChamadosBtn.style.display = 'none';
-            }
-        }
-    }
-
-    showWelcome() {
-        this.hideAllSections();
-        document.getElementById('welcomeSection').style.display = 'block';
-    }
-
-    showDashboard() {
-        if (!this.currentUser) {
-            this.showWelcome();
-            return;
+            badge.style.display = 'none';
+            // Mostrar aba "Novo Chamado" para usuários normais
+            document.querySelectorAll('.tab-btn')[0].style.display = 'block';
+            document.getElementById('novoTab').style.display = 'block';
         }
         
-        this.hideAllSections();
-        document.getElementById('dashboardSection').style.display = 'block';
-        this.loadChamados();
-        this.updateStats();
+        loadTickets();
+    } else {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('mainContent').style.display = 'none';
     }
+}
 
-    showNovoChamado() {
-        if (!this.currentUser) {
-            this.showWelcome();
-            return;
-        }
-        
-        this.hideAllSections();
-        document.getElementById('novoChamadoSection').style.display = 'block';
+// Alternar entre abas de login
+function switchLoginTab(tab) {
+    const tabs = document.querySelectorAll('.login-tab');
+    const forms = document.querySelectorAll('.login-form');
+    
+    tabs.forEach(t => t.classList.remove('active'));
+    forms.forEach(f => f.classList.remove('active'));
+    
+    if (tab === 'user') {
+        tabs[0].classList.add('active');
+        document.getElementById('userLogin').classList.add('active');
+    } else {
+        tabs[1].classList.add('active');
+        document.getElementById('adminLogin').classList.add('active');
     }
+}
 
-    showMeusChamados() {
-        this.showDashboard();
-        // Scroll to chamados list
-        document.querySelector('.chamados-container').scrollIntoView({ 
-            behavior: 'smooth' 
+// Login
+function login() {
+    const name = document.getElementById('loginName').value.trim();
+    const email = document.getElementById('loginEmail').value.trim();
+    const department = document.getElementById('loginDepartment').value;
+    
+    if (!name || !email || !department) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Atenção!',
+            text: 'Por favor, preencha todos os campos!',
+            confirmButtonColor: '#667eea'
         });
+        return;
     }
+    
+    currentUser = {
+        name: name,
+        email: email,
+        department: department,
+        isAdmin: false,
+        loginTime: new Date().toISOString()
+    };
+    
+    saveData();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Bem-vindo!',
+        text: `Olá, ${name}!`,
+        timer: 1500,
+        showConfirmButton: false
+    });
+    
+    setTimeout(() => {
+        checkLogin();
+    }, 1500);
+}
 
-    showGerenciarChamados() {
-        if (!this.currentUser || this.currentUser.setor !== 'NPD') {
-            alert('Acesso negado. Apenas a equipe NPD pode gerenciar chamados.');
-            return;
-        }
-        
-        this.hideAllSections();
-        document.getElementById('gerenciarChamadosSection').style.display = 'block';
-        this.loadChamadosGerenciar();
-    }
-
-    hideAllSections() {
-        const sections = [
-            'welcomeSection',
-            'dashboardSection', 
-            'novoChamadoSection',
-            'gerenciarChamadosSection'
-        ];
-        
-        sections.forEach(sectionId => {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                section.style.display = 'none';
-            }
+// Login Admin
+function adminLogin() {
+    const name = document.getElementById('adminName').value.trim();
+    const password = document.getElementById('adminPassword').value;
+    
+    if (!name || !password) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Atenção!',
+            text: 'Por favor, preencha todos os campos!',
+            confirmButtonColor: '#667eea'
         });
+        return;
     }
+    
+    if (password !== ADMIN_PASSWORD) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Acesso Negado!',
+            text: 'Senha incorreta!',
+            confirmButtonColor: '#667eea'
+        });
+        return;
+    }
+    
+    currentUser = {
+        name: name,
+        email: 'npd@uniselva.com',
+        department: 'NPD',
+        isAdmin: true,
+        loginTime: new Date().toISOString()
+    };
+    
+    saveData();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Bem-vindo Admin!',
+        html: `Olá, <strong>${name}</strong>!<br>Você tem acesso total ao sistema.`,
+        timer: 2000,
+        showConfirmButton: false
+    });
+    
+    setTimeout(() => {
+        checkLogin();
+    }, 2000);
+}
 
-    async handleNovoChamado(e) {
-        e.preventDefault();
-        
-        if (!this.currentUser || !this.token) {
-            alert('Você precisa estar logado para abrir um chamado!');
-            return;
-        }
-
-        const formData = new FormData(e.target);
-        const chamadoData = {
-            titulo: formData.get('titulo'),
-            descricao: formData.get('descricao'),
-            categoria: formData.get('categoria'),
-            prioridade: formData.get('prioridade'),
-            setor: formData.get('setor'),
-            telefone: formData.get('telefone')
-        };
-
-        try {
-            const response = await fetch(`${this.apiUrl}/chamados`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify(chamadoData)
+// Logout
+function logout() {
+    Swal.fire({
+        title: 'Deseja sair?',
+        text: 'Você será desconectado do sistema',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#667eea',
+        cancelButtonColor: '#ff4757',
+        confirmButtonText: 'Sim, sair',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            currentUser = null;
+            localStorage.removeItem('npd_currentUser');
+            Swal.fire({
+                icon: 'success',
+                title: 'Até logo!',
+                text: 'Você foi desconectado com sucesso',
+                timer: 1500,
+                showConfirmButton: false
             });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Show success modal
-                document.getElementById('protocoloNumero').textContent = data.chamado.protocolo;
-                this.showModal(document.getElementById('successModal'));
-                
-                // Reset form
-                e.target.reset();
-            } else {
-                alert(data.error || 'Erro ao criar chamado');
-            }
-        } catch (error) {
-            console.error('Erro ao criar chamado:', error);
-            alert('Erro de conexão. Verifique sua internet e tente novamente.');
+            setTimeout(() => {
+                checkLogin();
+            }, 1500);
         }
+    });
+}
+
+// Criar novo chamado
+function createTicket(e) {
+    e.preventDefault();
+    
+    const ticket = {
+        id: ticketCounter++,
+        title: document.getElementById('ticketTitle').value,
+        category: document.getElementById('ticketCategory').value,
+        priority: document.getElementById('ticketPriority').value,
+        description: document.getElementById('ticketDescription').value,
+        status: 'Aberto',
+        author: currentUser.name,
+        authorEmail: currentUser.email,
+        department: currentUser.department,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        history: [{
+            action: 'Chamado criado',
+            user: currentUser.name,
+            timestamp: new Date().toISOString(),
+            details: `Chamado criado com prioridade ${document.getElementById('ticketPriority').value}`
+        }],
+        messages: [{
+            author: currentUser.name,
+            text: document.getElementById('ticketDescription').value,
+            timestamp: new Date().toISOString(),
+            isAuthor: true
+        }]
+    };
+    
+    tickets.unshift(ticket);
+    saveData();
+    
+    // Limpar formulário
+    document.getElementById('newTicketForm').reset();
+    
+    // Mostrar mensagem de sucesso
+    Swal.fire({
+        icon: 'success',
+        title: 'Chamado Criado!',
+        html: `Seu chamado <strong>#${ticket.id}</strong> foi criado com sucesso!`,
+        confirmButtonColor: '#667eea',
+        confirmButtonText: 'Ver Chamado'
+    }).then(() => {
+        // Ir para aba "Meus Chamados"
+        showTab('meus');
+        loadTickets();
+    });
+}
+
+// Mostrar aba
+function showTab(tabName) {
+    // Remover active de todas as abas
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Ativar aba selecionada
+    if (tabName === 'novo') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('novoTab').classList.add('active');
+    } else if (tabName === 'meus') {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('meusTab').classList.add('active');
+        loadMyTickets();
+    } else if (tabName === 'todos') {
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+        document.getElementById('todosTab').classList.add('active');
+        loadAllTickets();
     }
+}
 
-    generateId() {
-        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+// Carregar todos os chamados
+function loadTickets() {
+    loadMyTickets();
+    loadAllTickets();
+}
+
+// Carregar meus chamados
+function loadMyTickets() {
+    const myTickets = tickets.filter(t => t.authorEmail === currentUser.email);
+    const container = document.getElementById('myTicketsList');
+    
+    if (myTickets.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Você ainda não tem chamados.</p>';
+        return;
     }
+    
+    container.innerHTML = myTickets.map(ticket => createTicketCard(ticket)).join('');
+}
 
-    generateProtocolo() {
-        const year = new Date().getFullYear();
-        const month = String(new Date().getMonth() + 1).padStart(2, '0');
-        const day = String(new Date().getDate()).padStart(2, '0');
-        const sequence = String(Date.now()).slice(-4);
-        
-        return `UNISELVA-${year}${month}${day}-${sequence}`;
+// Carregar todos os chamados
+function loadAllTickets() {
+    const container = document.getElementById('allTicketsList');
+    
+    if (tickets.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Nenhum chamado encontrado.</p>';
+        return;
     }
+    
+    container.innerHTML = tickets.map(ticket => createTicketCard(ticket)).join('');
+}
 
-    async loadChamados() {
-        if (!this.currentUser || !this.token) return;
-        
-        const chamadosList = document.getElementById('chamadosList');
-        if (!chamadosList) return;
-        
-        try {
-            const response = await fetch(`${this.apiUrl}/chamados`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-
-            if (response.ok) {
-                const chamados = await response.json();
-                
-                if (chamados.length === 0) {
-                    chamadosList.innerHTML = `
-                        <div class="text-center" style="padding: 2rem; color: #6c757d;">
-                            <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-                            <p>Nenhum chamado encontrado.</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                chamadosList.innerHTML = chamados.map(chamado => this.renderChamado(chamado)).join('');
-            } else {
-                console.error('Erro ao carregar chamados');
-                chamadosList.innerHTML = `
-                    <div class="text-center" style="padding: 2rem; color: #dc3545;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-                        <p>Erro ao carregar chamados. Tente novamente.</p>
-                    </div>
-                `;
-            }
-        } catch (error) {
-            console.error('Erro ao carregar chamados:', error);
-            chamadosList.innerHTML = `
-                <div class="text-center" style="padding: 2rem; color: #dc3545;">
-                    <i class="fas fa-wifi" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-                    <p>Erro de conexão. Verifique sua internet.</p>
+// Criar card de chamado
+function createTicketCard(ticket) {
+    const date = new Date(ticket.createdAt);
+    const formattedDate = formatDateTime(date);
+    
+    return `
+        <div class="ticket-card" onclick="openTicket(${ticket.id})">
+            <div class="ticket-header">
+                <div>
+                    <div class="ticket-title">${ticket.title}</div>
+                    <div class="ticket-id">#${ticket.id} - ${ticket.category}</div>
                 </div>
-            `;
-        }
-    }
-
-    renderChamado(chamado) {
-        const dataFormatada = new Date(chamado.dataAbertura).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        const statusClass = `status-${chamado.status.replace(' ', '-')}`;
-        const statusText = {
-            'aberto': 'Aberto',
-            'andamento': 'Em Andamento',
-            'resolvido': 'Resolvido',
-            'fechado': 'Fechado'
-        };
-
-        const prioridadeIcon = {
-            'baixa': 'fas fa-arrow-down text-success',
-            'media': 'fas fa-minus text-warning',
-            'alta': 'fas fa-arrow-up text-danger',
-            'critica': 'fas fa-exclamation-triangle text-danger'
-        };
-
-        return `
-            <div class="chamado-item">
-                <div class="chamado-header">
-                    <div class="chamado-titulo">
-                        <i class="fas fa-ticket-alt"></i>
-                        ${chamado.titulo}
-                    </div>
-                    <span class="chamado-status ${statusClass}">
-                        ${statusText[chamado.status] || chamado.status}
-                    </span>
-                </div>
-                <div class="chamado-info">
-                    <div><strong>Protocolo:</strong> ${chamado.protocolo}</div>
-                    <div><strong>Categoria:</strong> ${chamado.categoria}</div>
-                    <div>
-                        <strong>Prioridade:</strong> 
-                        <i class="${prioridadeIcon[chamado.prioridade]}"></i>
-                        ${chamado.prioridade}
-                    </div>
-                    <div><strong>Setor:</strong> ${chamado.setor}</div>
-                    <div><strong>Data:</strong> ${dataFormatada}</div>
-                    ${this.currentUser.setor === 'NPD' ? `<div><strong>Usuário:</strong> ${chamado.nomeUsuario}</div>` : ''}
-                </div>
-                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e9ecef;">
-                    <strong>Descrição:</strong>
-                    <p style="margin-top: 0.5rem; color: #6c757d;">${chamado.descricao}</p>
+                <div class="ticket-badges">
+                    <span class="badge badge-status">${ticket.status}</span>
+                    <span class="badge badge-priority ${ticket.priority}">${ticket.priority}</span>
                 </div>
             </div>
-        `;
-    }
+            <div class="ticket-description">${ticket.description.substring(0, 150)}${ticket.description.length > 150 ? '...' : ''}</div>
+            <div class="ticket-info">
+                <span>👤 ${ticket.author}</span>
+                <span>🏢 ${ticket.department}</span>
+                <span>📅 ${formattedDate}</span>
+                <span>💬 ${ticket.messages.length} mensagens</span>
+            </div>
+        </div>
+    `;
+}
 
-    async updateStats() {
-        if (!this.currentUser || !this.token) return;
+// Abrir detalhes do chamado
+function openTicket(ticketId) {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    
+    const modal = document.getElementById('ticketModal');
+    const detailsContainer = document.getElementById('ticketDetails');
+    
+    detailsContainer.innerHTML = `
+        <div class="ticket-detail-header">
+            <h2>${ticket.title}</h2>
+            <p>Chamado #${ticket.id} - ${ticket.category}</p>
+            <div style="margin-top: 10px;">
+                <span class="badge badge-status">${ticket.status}</span>
+                <span class="badge badge-priority ${ticket.priority}">${ticket.priority}</span>
+            </div>
+        </div>
         
-        try {
-            const response = await fetch(`${this.apiUrl}/estatisticas`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-
-            if (response.ok) {
-                const stats = await response.json();
-                
-                // Update DOM
-                const totalElement = document.getElementById('totalChamados');
-                const abertosElement = document.getElementById('chamadosAbertos');
-                const resolvidosElement = document.getElementById('chamadosResolvidos');
-                
-                if (totalElement) totalElement.textContent = stats.total;
-                if (abertosElement) abertosElement.textContent = stats.abertos + stats.andamento;
-                if (resolvidosElement) resolvidosElement.textContent = stats.resolvidos + stats.fechados;
-            }
-        } catch (error) {
-            console.error('Erro ao carregar estatísticas:', error);
-        }
-    }
-
-    // Método para testar conexão com API
-    async testConnection() {
-        try {
-            const response = await fetch(`${this.apiUrl}/health`);
-            const data = await response.json();
-            console.log('Conexão com API:', data);
-            this.updateConnectionStatus(true);
-            return response.ok;
-        } catch (error) {
-            console.error('Erro de conexão com API:', error);
-            this.updateConnectionStatus(false);
-            return false;
-        }
-    }
-
-    updateConnectionStatus(isOnline) {
-        const statusCard = document.getElementById('connectionStatus');
-        const icon = document.getElementById('connectionIcon');
-        const text = document.getElementById('connectionText');
-        
-        if (!statusCard || !icon || !text) return;
-        
-        if (isOnline) {
-            statusCard.style.background = 'linear-gradient(135deg, #d4edda, #c3e6cb)';
-            icon.className = 'fas fa-wifi';
-            icon.style.color = '#28a745';
-            text.textContent = 'Online';
-            text.style.color = '#155724';
-        } else {
-            statusCard.style.background = 'linear-gradient(135deg, #f8d7da, #f1b0b7)';
-            icon.className = 'fas fa-wifi-slash';
-            icon.style.color = '#dc3545';
-            text.textContent = 'Offline';
-            text.style.color = '#721c24';
-        }
-    }
-
-    // Monitorar conexão periodicamente
-    startConnectionMonitor() {
-        setInterval(async () => {
-            await this.testConnection();
-        }, 30000); // Testa a cada 30 segundos
-    }
-
-    // Carregar chamados para gerenciar (NPD)
-    async loadChamadosGerenciar() {
-        if (!this.currentUser || !this.token || this.currentUser.setor !== 'NPD') return;
-        
-        const chamadosList = document.getElementById('chamadosGerenciarList');
-        if (!chamadosList) return;
-        
-        try {
-            const response = await fetch(`${this.apiUrl}/chamados`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-
-            if (response.ok) {
-                const chamados = await response.json();
-                
-                if (chamados.length === 0) {
-                    chamadosList.innerHTML = `
-                        <div class="text-center" style="padding: 3rem; color: #6c757d;">
-                            <i class="fas fa-inbox" style="font-size: 4rem; margin-bottom: 1rem;"></i>
-                            <h3>Nenhum chamado encontrado</h3>
-                            <p>Não há chamados para gerenciar no momento.</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                chamadosList.innerHTML = chamados.map(chamado => this.renderChamadoGerenciar(chamado)).join('');
-                this.bindGerenciarEvents();
-            } else {
-                console.error('Erro ao carregar chamados para gerenciar');
-                chamadosList.innerHTML = `
-                    <div class="alert alert-error">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Erro ao carregar chamados. Tente novamente.
+        <div class="ticket-detail-body">
+            <!-- Informações do Chamado -->
+            <div class="detail-section">
+                <h3>📋 Informações</h3>
+                <p><strong>Solicitante:</strong> ${ticket.author} (${ticket.authorEmail})</p>
+                <p><strong>Departamento:</strong> ${ticket.department}</p>
+                <p><strong>Criado em:</strong> ${formatDateTime(new Date(ticket.createdAt))}</p>
+                <p><strong>Última atualização:</strong> ${formatDateTime(new Date(ticket.updatedAt))}</p>
+                <p><strong>Descrição:</strong></p>
+                <p style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;">${ticket.description}</p>
+            </div>
+            
+            <!-- Atualizar Status -->
+            <div class="detail-section">
+                <h3>🔄 Atualizar Status</h3>
+                ${currentUser.isAdmin ? `
+                    <div class="status-update">
+                        <select id="updateStatus" class="input-field">
+                            <option value="Aberto" ${ticket.status === 'Aberto' ? 'selected' : ''}>Aberto</option>
+                            <option value="Em Andamento" ${ticket.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
+                            <option value="Aguardando" ${ticket.status === 'Aguardando' ? 'selected' : ''}>Aguardando</option>
+                            <option value="Resolvido" ${ticket.status === 'Resolvido' ? 'selected' : ''}>Resolvido</option>
+                            <option value="Fechado" ${ticket.status === 'Fechado' ? 'selected' : ''}>Fechado</option>
+                        </select>
+                        <button class="btn-primary" onclick="updateTicketStatus(${ticket.id})">Atualizar Status</button>
                     </div>
-                `;
-            }
-        } catch (error) {
-            console.error('Erro ao carregar chamados para gerenciar:', error);
-            chamadosList.innerHTML = `
-                <div class="alert alert-error">
-                    <i class="fas fa-wifi"></i>
-                    Erro de conexão. Verifique sua internet.
-                </div>
-            `;
-        }
-    }
-
-    // Renderizar chamado para gerenciar
-    renderChamadoGerenciar(chamado) {
-        const dataFormatada = new Date(chamado.dataAbertura).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        const statusClass = `status-${chamado.status}`;
-        const statusText = {
-            'aberto': 'Aberto',
-            'andamento': 'Em Andamento',
-            'aguardando': 'Aguardando Usuário',
-            'resolvido': 'Resolvido',
-            'fechado': 'Fechado'
-        };
-
-        const prioridadeClass = `prioridade-${chamado.prioridade}`;
-        const prioridadeIcon = {
-            'baixa': 'fas fa-arrow-down',
-            'media': 'fas fa-minus',
-            'alta': 'fas fa-arrow-up',
-            'critica': 'fas fa-exclamation-triangle'
-        };
-
-        const comentarios = chamado.comentarios || [];
-        const historico = chamado.historico || [];
-
-        return `
-            <div class="chamado-gerenciar-item" data-id="${chamado.id}">
-                <div class="chamado-gerenciar-header">
-                    <div class="chamado-gerenciar-titulo">
-                        <h4>
-                            <i class="fas fa-ticket-alt"></i>
-                            ${chamado.titulo}
-                        </h4>
-                        <div class="protocolo">Protocolo: ${chamado.protocolo}</div>
+                ` : `
+                    <div class="permission-denied">
+                        🔒 Apenas administradores do NPD podem atualizar o status dos chamados
                     </div>
-                    <div class="chamado-status-badge ${statusClass}">
-                        ${statusText[chamado.status]}
+                    <div class="status-update">
+                        <p><strong>Status Atual:</strong> ${ticket.status}</p>
                     </div>
-                </div>
-
-                <div class="chamado-gerenciar-info">
-                    <div class="info-item">
-                        <div class="info-label">Usuário</div>
-                        <div class="info-value">${chamado.nomeUsuario}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Categoria</div>
-                        <div class="info-value">${chamado.categoria}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Prioridade</div>
-                        <div class="info-value">
-                            <span class="prioridade-badge ${prioridadeClass}">
-                                <i class="${prioridadeIcon[chamado.prioridade]}"></i>
-                                ${chamado.prioridade}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Setor</div>
-                        <div class="info-value">${chamado.setor}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Data Abertura</div>
-                        <div class="info-value">${dataFormatada}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Telefone</div>
-                        <div class="info-value">${chamado.telefone || 'Não informado'}</div>
-                    </div>
-                </div>
-
-                <div class="chamado-descricao">
-                    <h5>Descrição do Problema</h5>
-                    <p>${chamado.descricao}</p>
-                </div>
-
-                <div class="chamado-actions">
-                    <button class="btn btn-outline-primary btn-sm update-status-btn" data-id="${chamado.id}">
-                        <i class="fas fa-edit"></i> Atualizar Status
-                    </button>
-                    <button class="btn btn-outline-success btn-sm add-comment-btn" data-id="${chamado.id}">
-                        <i class="fas fa-comment"></i> Adicionar Comentário
-                    </button>
-                    <button class="btn btn-outline-warning btn-sm toggle-details-btn" data-id="${chamado.id}">
-                        <i class="fas fa-eye"></i> Ver Detalhes
-                    </button>
-                </div>
-
-                <div class="chamado-details" id="details-${chamado.id}" style="display: none;">
-                    ${comentarios.length > 0 ? `
-                        <div class="comentarios-section">
-                            <h5><i class="fas fa-comments"></i> Comentários (${comentarios.length})</h5>
-                            ${comentarios.map(comentario => `
-                                <div class="comentario-item ${comentario.isNPD ? 'npd' : ''}">
-                                    <div class="comentario-header">
-                                        <span class="comentario-autor">
-                                            ${comentario.usuario} ${comentario.isNPD ? '(NPD)' : ''}
-                                        </span>
-                                        <span class="comentario-data">
-                                            ${new Date(comentario.data).toLocaleDateString('pt-BR', {
-                                                day: '2-digit',
-                                                month: '2-digit',
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </span>
-                                    </div>
-                                    <p class="comentario-texto">${comentario.texto}</p>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
-
-                    ${historico.length > 0 ? `
-                        <div class="historico-section">
-                            <h5><i class="fas fa-history"></i> Histórico (${historico.length})</h5>
-                            ${historico.map(item => `
-                                <div class="historico-item">
-                                    <div class="historico-icon">
-                                        <i class="fas fa-clock"></i>
-                                    </div>
-                                    <div class="historico-content">
-                                        <div class="historico-acao">${item.acao}</div>
-                                        <div class="historico-detalhes">${item.detalhes}</div>
-                                        <div class="historico-data">
-                                            ${item.usuario} - ${new Date(item.data).toLocaleDateString('pt-BR', {
-                                                day: '2-digit',
-                                                month: '2-digit',
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </div>
+                `}
+            </div>
+            
+            <!-- Chat -->
+            <div class="detail-section">
+                <h3>💬 Conversas (${ticket.messages.length})</h3>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages">
+                        ${ticket.messages.length > 0 ? ticket.messages.map(msg => {
+                            const isOwn = msg.author === currentUser.name;
+                            const msgDate = new Date(msg.timestamp);
+                            return `
+                                <div class="chat-message ${isOwn ? 'own' : 'other'}">
+                                    <div class="chat-bubble">
+                                        <div class="chat-author">${msg.author}</div>
+                                        <div class="chat-text">${msg.text}</div>
+                                        <div class="chat-time">${formatDateTime(msgDate)}</div>
                                     </div>
                                 </div>
-                            `).join('')}
+                            `;
+                        }).join('') : `
+                            <div class="chat-empty">
+                                <div class="chat-empty-icon">💬</div>
+                                <div>Nenhuma mensagem ainda</div>
+                                <div style="font-size: 12px; margin-top: 5px;">Seja o primeiro a enviar uma mensagem!</div>
+                            </div>
+                        `}
+                    </div>
+                    <div class="chat-input-area">
+                        <div class="chat-input-container">
+                            <textarea 
+                                id="chatInput" 
+                                placeholder="Digite sua mensagem aqui..." 
+                                onkeydown="handleChatKeyPress(event, ${ticket.id})"
+                                oninput="autoResizeTextarea(this)"
+                            ></textarea>
+                            <button class="btn-primary" onclick="sendMessage(${ticket.id})">
+                                <span>📤</span>
+                                <span>Enviar</span>
+                            </button>
                         </div>
-                    ` : ''}
+                        <div class="chat-hint">
+                            💡 Pressione <strong>Enter</strong> para enviar ou <strong>Shift + Enter</strong> para nova linha
+                        </div>
+                    </div>
                 </div>
             </div>
-        `;
-    }
-
-    // Bind events para gerenciar chamados
-    bindGerenciarEvents() {
-        // Botões de atualizar status
-        document.querySelectorAll('.update-status-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const chamadoId = e.target.closest('.update-status-btn').dataset.id;
-                this.showStatusModal(chamadoId);
-            });
-        });
-
-        // Botões de adicionar comentário
-        document.querySelectorAll('.add-comment-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const chamadoId = e.target.closest('.add-comment-btn').dataset.id;
-                this.showComentarioModal(chamadoId);
-            });
-        });
-
-        // Botões de toggle detalhes
-        document.querySelectorAll('.toggle-details-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const chamadoId = e.target.closest('.toggle-details-btn').dataset.id;
-                const details = document.getElementById(`details-${chamadoId}`);
-                const icon = e.target.querySelector('i');
-                
-                if (details.style.display === 'none') {
-                    details.style.display = 'block';
-                    icon.className = 'fas fa-eye-slash';
-                    e.target.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Detalhes';
-                } else {
-                    details.style.display = 'none';
-                    icon.className = 'fas fa-eye';
-                    e.target.innerHTML = '<i class="fas fa-eye"></i> Ver Detalhes';
-                }target.innerHTML = '<i class="fas fa-eye"></i> Ver Detalhes';
-                }
-            });
-        });
-    }
-
-    // Mostrar modal de status
-    showStatusModal(chamadoId) {
-        this.currentChamadoId = chamadoId;
-        this.showModal(document.getElementById('statusModal'));
-    }
-
-    // Mostrar modal de comentário
-    showComentarioModal(chamadoId) {
-        this.currentChamadoId = chamadoId;
-        this.showModal(document.getElementById('comentarioModal'));
-    }
-
-    // Handle status update
-    async handleStatusUpdate(e) {
-        e.preventDefault();
-        
-        if (!this.currentChamadoId || !this.token) return;
-
-        const formData = new FormData(e.target);
-        const statusData = {
-            status: formData.get('status'),
-            observacao: formData.get('observacao')
-        };
-
-        try {
-            const response = await fetch(`${this.apiUrl}/chamados/${this.currentChamadoId}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify(statusData)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.hideModal(document.getElementById('statusModal'));
-                e.target.reset();
-                this.loadChamadosGerenciar(); // Recarregar lista
-                this.showAlert('Status atualizado com sucesso!', 'success');
-            } else {
-                this.showAlert(data.error || 'Erro ao atualizar status', 'error');
-            }
-        } catch (error) {
-            console.error('Erro ao atualizar status:', error);
-            this.showAlert('Erro de conexão. Tente novamente.', 'error');
-        }
-    }
-
-    // Handle comentário
-    async handleComentario(e) {
-        e.preventDefault();
-        
-        if (!this.currentChamadoId || !this.token) return;
-
-        const formData = new FormData(e.target);
-        const comentarioData = {
-            comentario: formData.get('comentario')
-        };
-
-        try {
-            const response = await fetch(`${this.apiUrl}/chamados/${this.currentChamadoId}/comentarios`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify(comentarioData)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.hideModal(document.getElementById('comentarioModal'));
-                e.target.reset();
-                this.loadChamadosGerenciar(); // Recarregar lista
-                this.showAlert('Comentário adicionado com sucesso!', 'success');
-            } else {
-                this.showAlert(data.error || 'Erro ao adicionar comentário', 'error');
-            }
-        } catch (error) {
-            console.error('Erro ao adicionar comentário:', error);
-            this.showAlert('Erro de conexão. Tente novamente.', 'error');
-        }
-    }
-
-    // Mostrar alerta
-    showAlert(message, type = 'info') {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type}`;
-        alertDiv.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
-            ${message}
-        `;
-        
-        const container = document.querySelector('.gerenciar-container') || document.querySelector('.container');
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Remover após 5 segundos
-        setTimeout(() => {
-            alertDiv.remove();
-        }, 5000);
-    }
-
-    // Aplicar filtros
-    applyFilters() {
-        const filtroStatus = document.getElementById('filtroStatus')?.value || '';
-        const filtroCategoria = document.getElementById('filtroCategoria')?.value || '';
-        const filtroPrioridade = document.getElementById('filtroPrioridade')?.value || '';
-
-        const chamadosItems = document.querySelectorAll('.chamado-gerenciar-item');
-        
-        chamadosItems.forEach(item => {
-            const statusElement = item.querySelector('.chamado-status-badge');
-            const categoriaElement = item.querySelector('.info-value');
-            const prioridadeElement = item.querySelector('.prioridade-badge');
             
-            let showItem = true;
+            <!-- Histórico -->
+            <div class="detail-section">
+                <h3>📜 Histórico</h3>
+                <div class="history-timeline">
+                    ${ticket.history.map(item => `
+                        <div class="history-item">
+                            <div class="history-header">
+                                <span class="history-action">${item.action}</span>
+                                <span class="history-time">${formatDateTime(new Date(item.timestamp))}</span>
+                            </div>
+                            <div class="history-details">
+                                Por: ${item.user}<br>
+                                ${item.details}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'block';
+    
+    // Scroll para última mensagem
+    setTimeout(() => {
+        scrollToBottom();
+    }, 100);
+}
 
-            // Filtro por status
-            if (filtroStatus && statusElement) {
-                const status = statusElement.className.includes('status-' + filtroStatus);
-                if (!status) showItem = false;
-            }
+// Scroll para o final do chat
+function scrollToBottom() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
 
-            // Filtro por categoria
-            if (filtroCategoria && categoriaElement) {
-                const categoria = item.textContent.includes(filtroCategoria);
-                if (!categoria) showItem = false;
-            }
+// Fechar modal
+function closeModal() {
+    document.getElementById('ticketModal').style.display = 'none';
+}
 
-            // Filtro por prioridade
-            if (filtroPrioridade && prioridadeElement) {
-                const prioridade = prioridadeElement.className.includes('prioridade-' + filtroPrioridade);
-                if (!prioridade) showItem = false;
-            }
+// Atualizar status do chamado
+function updateTicketStatus(ticketId) {
+    // Verificar se é admin
+    if (!currentUser.isAdmin) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Acesso Negado!',
+            text: 'Apenas administradores do NPD podem atualizar o status dos chamados.',
+            confirmButtonColor: '#667eea'
+        });
+        return;
+    }
+    
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    
+    const newStatus = document.getElementById('updateStatus').value;
+    const oldStatus = ticket.status;
+    
+    if (newStatus === oldStatus) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Status Atual',
+            text: `O status já está definido como "${newStatus}"`,
+            confirmButtonColor: '#667eea'
+        });
+        return;
+    }
+    
+    ticket.status = newStatus;
+    ticket.updatedAt = new Date().toISOString();
+    
+    // Adicionar ao histórico
+    ticket.history.unshift({
+        action: 'Status atualizado',
+        user: currentUser.name + ' (NPD)',
+        timestamp: new Date().toISOString(),
+        details: `Status alterado de "${oldStatus}" para "${newStatus}"`
+    });
+    
+    saveData();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Status Atualizado!',
+        html: `Status alterado de <strong>"${oldStatus}"</strong> para <strong>"${newStatus}"</strong>`,
+        confirmButtonColor: '#667eea',
+        timer: 2000
+    });
+    
+    // Reabrir o chamado para mostrar as mudanças
+    setTimeout(() => {
+        openTicket(ticketId);
+        loadTickets();
+    }, 500);
+}
 
-            item.style.display = showItem ? 'block' : 'none';
+// Enviar mensagem
+function sendMessage(ticketId) {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) {
+        console.error('Ticket não encontrado:', ticketId);
+        return;
+    }
+    
+    const chatInput = document.getElementById('chatInput');
+    if (!chatInput) {
+        console.error('Input de chat não encontrado');
+        return;
+    }
+    
+    const messageText = chatInput.value.trim();
+    
+    if (!messageText) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Atenção!',
+            text: 'Digite uma mensagem antes de enviar!',
+            confirmButtonColor: '#667eea',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        return;
+    }
+    
+    // Criar nova mensagem
+    const message = {
+        author: currentUser.name,
+        authorEmail: currentUser.email,
+        text: messageText,
+        timestamp: new Date().toISOString(),
+        isAuthor: ticket.authorEmail === currentUser.email
+    };
+    
+    // Adicionar mensagem ao ticket
+    ticket.messages.push(message);
+    ticket.updatedAt = new Date().toISOString();
+    
+    // Adicionar ao histórico
+    ticket.history.unshift({
+        action: 'Nova mensagem',
+        user: currentUser.name + (currentUser.isAdmin ? ' (NPD)' : ''),
+        timestamp: new Date().toISOString(),
+        details: `Mensagem adicionada ao chamado`
+    });
+    
+    // Salvar no localStorage
+    saveData();
+    
+    // Limpar input
+    chatInput.value = '';
+    
+    // Adicionar mensagem ao chat visualmente
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) {
+        console.error('Container de mensagens não encontrado');
+        return;
+    }
+    
+    const isOwn = message.author === currentUser.name;
+    
+    const messageHTML = `
+        <div class="chat-message ${isOwn ? 'own' : 'other'}">
+            <div class="chat-bubble">
+                <div class="chat-author">${message.author}${currentUser.isAdmin && isOwn ? ' (NPD)' : ''}</div>
+                <div class="chat-text">${escapeHtml(message.text)}</div>
+                <div class="chat-time">${formatDateTime(new Date(message.timestamp))}</div>
+            </div>
+        </div>
+    `;
+    
+    // Remover mensagem vazia se existir
+    const emptyMessage = chatMessages.querySelector('.chat-empty');
+    if (emptyMessage) {
+        emptyMessage.remove();
+    }
+    
+    // Adicionar nova mensagem
+    chatMessages.insertAdjacentHTML('beforeend', messageHTML);
+    
+    // Scroll para a nova mensagem
+    setTimeout(() => {
+        scrollToBottom();
+    }, 50);
+    
+    // Focar no input novamente
+    chatInput.focus();
+    
+    // Atualizar contador de mensagens nos cards
+    loadTickets();
+    
+    console.log('Mensagem enviada com sucesso:', message);
+}
+
+// Escapar HTML para prevenir XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Permitir enviar mensagem com Enter (Shift+Enter para nova linha)
+function handleChatKeyPress(event, ticketId) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage(ticketId);
+        return false;
+    }
+}
+
+// Auto-resize do textarea
+function autoResizeTextarea(textarea) {
+    // Reset height to get correct scrollHeight
+    textarea.style.height = '120px';
+    
+    // Calculate new height
+    const newHeight = Math.max(120, Math.min(textarea.scrollHeight, 250));
+    textarea.style.height = newHeight + 'px';
+}
+
+// Filtrar chamados
+function filterTickets() {
+    const statusFilter = document.getElementById('filterStatus').value;
+    const priorityFilter = document.getElementById('filterPriority').value;
+    
+    let filteredTickets = [...tickets];
+    
+    if (statusFilter) {
+        filteredTickets = filteredTickets.filter(t => t.status === statusFilter);
+    }
+    
+    if (priorityFilter) {
+        filteredTickets = filteredTickets.filter(t => t.priority === priorityFilter);
+    }
+    
+    const container = document.getElementById('allTicketsList');
+    
+    if (filteredTickets.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Nenhum chamado encontrado com os filtros selecionados.</p>';
+        return;
+    }
+    
+    container.innerHTML = filteredTickets.map(ticket => createTicketCard(ticket)).join('');
+}
+
+// Formatar data e hora
+function formatDateTime(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${day}/${month}/${year} às ${hours}:${minutes}`;
+}
+
+// Tema Dark/Light
+function loadTheme() {
+    const savedTheme = localStorage.getItem('npd_theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('themeToggle').textContent = '☀️';
+    }
+}
+
+function toggleTheme() {
+    const body = document.body;
+    const themeToggle = document.getElementById('themeToggle');
+    
+    body.classList.toggle('dark-mode');
+    
+    if (body.classList.contains('dark-mode')) {
+        themeToggle.textContent = '☀️';
+        localStorage.setItem('npd_theme', 'dark');
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Modo Escuro Ativado',
+            text: 'Tema alterado com sucesso!',
+            timer: 1500,
+            showConfirmButton: false,
+            background: body.classList.contains('dark-mode') ? '#0f3460' : '#fff',
+            color: body.classList.contains('dark-mode') ? '#fff' : '#333'
+        });
+    } else {
+        themeToggle.textContent = '🌙';
+        localStorage.setItem('npd_theme', 'light');
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Modo Claro Ativado',
+            text: 'Tema alterado com sucesso!',
+            timer: 1500,
+            showConfirmButton: false
         });
     }
 }
 
-// Initialize system when DOM is loaded
-document.addEventListener('DOMContentLoaded', async () => {
-    const sistema = new SistemaChamados();
-    
-    // Test API connection
-    const connected = await sistema.testConnection();
-    if (!connected) {
-        console.warn('API não está disponível. Funcionando em modo offline.');
+// Fechar modal ao clicar fora
+window.onclick = function(event) {
+    const modal = document.getElementById('ticketModal');
+    if (event.target === modal) {
+        closeModal();
     }
-    
-    // Start connection monitoring
-    sistema.startConnectionMonitor();
-    
-    // Make sistema globally available for debugging
-    window.sistemaChamados = sistema;
-});
-
-// Service Worker Registration (for PWA functionality)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-                console.log('SW registration failed: ', registrationError);
-            });
-    });
 }
