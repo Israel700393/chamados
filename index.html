@@ -1,339 +1,158 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Chamados - FUNDAÇÃO UNISELVA</title>
-    <link rel="stylesheet" href="sistema-chamados.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        /* Estilos adicionais para garantir funcionamento */
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100% !important;
-            padding: 12px !important;
-            border: 2px solid #e9ecef !important;
-            border-radius: 8px !important;
-            font-size: 16px !important;
-            box-sizing: border-box !important;
-            background: white !important;
-            color: #333 !important;
-        }
-        
-        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-            outline: none !important;
-            border-color: #007bff !important;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1) !important;
-        }
-        
-        .form-group textarea {
-            resize: vertical !important;
-            min-height: 120px !important;
-        }
-        
-        .alert-fixed {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            max-width: 400px;
-            animation: slideInRight 0.3s ease;
-        }
-        
-        .alert-success {
-            background: #d4edda;
-            border-left: 4px solid #28a745;
-            color: #155724;
-        }
-        
-        .alert-error {
-            background: #f8d7da;
-            border-left: 4px solid #dc3545;
-            color: #721c24;
-        }
-        
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-    </style>
+    <title>Sistema de Chamados NPD - Fundação Uniselva</title>
+    <link rel="stylesheet" href="npd-uniselva.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
             <div class="logo">
-                <i class="fas fa-leaf"></i>
                 <h1>FUNDAÇÃO UNISELVA</h1>
+                <p>Sistema de Chamados - NPD</p>
             </div>
-            <nav class="nav">
-                <button id="loginBtn" class="btn btn-primary">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </button>
-                <button id="logoutBtn" class="btn btn-secondary" style="display: none;">
-                    <i class="fas fa-sign-out-alt"></i> Sair
-                </button>
-            </nav>
-        </div>
-    </header>
-
-    <!-- Login Modal -->
-    <div id="loginModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2><i class="fas fa-user-lock"></i> Acesso ao Sistema</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="usuario">Usuário:</label>
-                    <input type="text" id="usuario" name="usuario" required autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label for="senha">Senha:</label>
-                    <input type="password" id="senha" name="senha" required autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-sign-in-alt"></i> Entrar
-                </button>
-            </form>
-            <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem;">
-                <strong>Usuários de teste:</strong><br>
-                NPD: <code>breno</code> / <code>admin123</code><br>
-                Usuário: <code>israel.rangel</code> / <code>israel123</code>
+            <div class="user-info">
+                <button onclick="toggleTheme()" class="btn-theme" id="themeToggle">🌙</button>
+                <span id="userName">Usuário</span>
+                <span id="userBadge" class="user-badge" style="display: none;">ADMIN</span>
+                <button onclick="logout()" class="btn-logout">Sair</button>
             </div>
-        </div>
-    </div>
+        </header>
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="container">
-            <!-- Welcome Section -->
-            <section id="welcomeSection" class="welcome-section">
-                <div class="hero">
-                    <h2><i class="fas fa-headset"></i> Sistema de Chamados NPD</h2>
-                    <p>Núcleo de Processamento de Dados - FUNDAÇÃO UNISELVA</p>
-                    <p class="subtitle">Faça login para abrir chamados ou acompanhar solicitações existentes</p>
-                </div>
-            </section>
-
-            <!-- Dashboard Section -->
-            <section id="dashboardSection" class="dashboard-section" style="display: none;">
-                <div class="dashboard-header">
-                    <h2><i class="fas fa-tachometer-alt"></i> Dashboard de Chamados</h2>
-                    <div class="user-info">
-                        <span id="userWelcome"></span>
-                    </div>
+        <!-- Login Screen -->
+        <div id="loginScreen" class="login-screen">
+            <div class="login-box">
+                <h2>Acesso ao Sistema</h2>
+                <div class="login-tabs">
+                    <button class="login-tab active" onclick="switchLoginTab('user')">Usuário</button>
+                    <button class="login-tab" onclick="switchLoginTab('admin')">Admin NPD</button>
                 </div>
 
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-ticket-alt"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="totalChamados">0</h3>
-                            <p>Total de Chamados</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="chamadosAbertos">0</h3>
-                            <p>Em Andamento</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3 id="chamadosResolvidos">0</h3>
-                            <p>Resolvidos</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button id="novoChamadoBtn" class="btn btn-success">
-                        <i class="fas fa-plus"></i> Novo Chamado
-                    </button>
-                    <button id="meusChamadosBtn" class="btn btn-info">
-                        <i class="fas fa-list"></i> Meus Chamados
-                    </button>
-                    <button id="gerenciarChamadosBtn" class="btn btn-warning" style="display: none;">
-                        <i class="fas fa-cogs"></i> Gerenciar Chamados
-                    </button>
-                </div>
-
-                <!-- Chamados List -->
-                <div class="chamados-container">
-                    <h3><i class="fas fa-list-ul"></i> Seus Chamados Recentes</h3>
-                    <div id="chamadosList" class="chamados-list">
-                        <!-- Chamados serão carregados aqui -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- Novo Chamado Section -->
-            <section id="novoChamadoSection" class="form-section" style="display: none;">
-                <div class="form-header">
-                    <h2><i class="fas fa-plus-circle"></i> Abrir Novo Chamado</h2>
-                    <button id="voltarDashboard" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Voltar
-                    </button>
-                </div>
-
-                <form id="chamadoForm" class="chamado-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="categoria">Categoria:</label>
-                            <select id="categoria" name="categoria" required>
-                                <option value="">Selecione uma categoria</option>
-                                <option value="hardware">Hardware</option>
-                                <option value="software">Software</option>
-                                <option value="rede">Rede/Internet</option>
-                                <option value="email">E-mail</option>
-                                <option value="sistema">Sistema Interno</option>
-                                <option value="impressora">Impressora</option>
-                                <option value="backup">Backup/Recuperação</option>
-                                <option value="outros">Outros</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="prioridade">Prioridade:</label>
-                            <select id="prioridade" name="prioridade" required>
-                                <option value="">Selecione a prioridade</option>
-                                <option value="baixa">Baixa</option>
-                                <option value="media">Média</option>
-                                <option value="alta">Alta</option>
-                                <option value="critica">Crítica</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="titulo">Título do Chamado:</label>
-                        <input type="text" id="titulo" name="titulo" required 
-                               placeholder="Descreva brevemente o problema" autocomplete="off">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="descricao">Descrição Detalhada:</label>
-                        <textarea id="descricao" name="descricao" rows="6" required
-                                  placeholder="Descreva o problema em detalhes, incluindo quando começou, o que estava fazendo quando ocorreu, mensagens de erro, etc."></textarea>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="setor">Setor:</label>
-                            <select id="setor" name="setor" required>
-                                <option value="">Selecione seu setor</option>
-                                <option value="administracao">Administração</option>
-                                <option value="financeiro">Financeiro</option>
-                                <option value="rh">Recursos Humanos</option>
-                                <option value="projetos">Projetos</option>
-                                <option value="pesquisa">Pesquisa</option>
-                                <option value="diretoria">Diretoria</option>
-                                <option value="outros">Outros</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="telefone">Telefone/Ramal:</label>
-                            <input type="tel" id="telefone" name="telefone" 
-                                   placeholder="(XX) XXXXX-XXXX ou ramal" autocomplete="tel">
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-paper-plane"></i> Enviar Chamado
-                        </button>
-                        <button type="reset" class="btn btn-secondary">
-                            <i class="fas fa-undo"></i> Limpar
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <!-- Gerenciar Chamados Section (NPD Only) -->
-            <section id="gerenciarChamadosSection" class="form-section" style="display: none;">
-                <div class="form-header">
-                    <h2><i class="fas fa-cogs"></i> Gerenciar Chamados (NPD)</h2>
-                    <button id="voltarDashboardGerenciar" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Voltar
-                    </button>
-                </div>
-
-                <div class="gerenciar-container">
-                    <div id="chamadosGerenciarList" class="chamados-gerenciar-list">
-                        <!-- Chamados para gerenciar serão carregados aqui -->
-                    </div>
-                </div>
-            </section>
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 FUNDAÇÃO UNISELVA - Sistema de Chamados NPD</p>
-            <p>Núcleo de Processamento de Dados</p>
-        </div>
-    </footer>
-
-    <!-- Success Modal -->
-    <div id="successModal" class="modal">
-        <div class="modal-content success">
-            <span class="close">&times;</span>
-            <div class="success-icon">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <h2>Chamado Criado com Sucesso!</h2>
-            <p>Seu chamado foi registrado e será atendido pela equipe do NPD.</p>
-            <p><strong>Número do Protocolo: <span id="protocoloNumero"></span></strong></p>
-            <button id="okBtn" class="btn btn-primary">OK</button>
-        </div>
-    </div>
-
-    <!-- Status Update Modal -->
-    <div id="statusModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2><i class="fas fa-edit"></i> Atualizar Status do Chamado</h2>
-            <form id="statusForm">
-                <div class="form-group">
-                    <label for="novoStatus">Novo Status:</label>
-                    <select id="novoStatus" name="status" required>
-                        <option value="">Selecione o status</option>
-                        <option value="aberto">Aberto</option>
-                        <option value="andamento">Em Andamento</option>
-                        <option value="aguardando">Aguardando Usuário</option>
-                        <option value="resolvido">Resolvido</option>
-                        <option value="fechado">Fechado</option>
+                <!-- Login Usuário -->
+                <div id="userLogin" class="login-form active">
+                    <input type="text" id="loginName" placeholder="Seu nome" class="input-field">
+                    <input type="email" id="loginEmail" placeholder="Seu e-mail" class="input-field">
+                    <select id="loginDepartment" class="input-field">
+                        <option value="">Selecione o departamento</option>
+                        <option value="Administrativo">Administrativo</option>
+                        <option value="Financeiro">Financeiro</option>
+                        <option value="RH">Recursos Humanos</option>
+                        <option value="TI">Tecnologia da Informação</option>
+                        <option value="Operacional">Operacional</option>
                     </select>
+                    <button onclick="login()" class="btn-primary">Entrar</button>
                 </div>
-                <div class="form-group">
-                    <label for="observacao">Observação:</label>
-                    <textarea id="observacao" name="observacao" rows="4" 
-                              placeholder="Adicione uma observação sobre a mudança de status (opcional)"></textarea>
+
+                <!-- Login Admin -->
+                <div id="adminLogin" class="login-form">
+                    <input type="text" id="adminName" placeholder="Nome do Admin" class="input-field">
+                    <input type="password" id="adminPassword" placeholder="Senha" class="input-field">
+                    <button onclick="adminLogin()" class="btn-primary">Entrar como Admin</button>
+                    <p style="font-size: 12px; color: #999; margin-top: 10px; text-align: center;">
+                        Senha padrão: <strong>npd2024</strong>
+                    </p>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Atualizar Status
-                    </button>
-                    <button type="button" id="cancelarStatus" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Cancelar
-                    </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" class="main-content" style="display: none;">
+            <!-- Navigation -->
+            <nav class="nav-tabs">
+                <button class="tab-btn active" onclick="showTab('novo')">Novo Chamado</button>
+                <button class="tab-btn" onclick="showTab('meus')">Meus Chamados</button>
+                <button class="tab-btn" onclick="showTab('todos')">Todos os Chamados</button>
+            </nav>
+
+            <!-- Novo Chamado Tab -->
+            <div id="novoTab" class="tab-content active">
+                <div class="form-card">
+                    <h2>Abrir Novo Chamado</h2>
+                    <form id="newTicketForm">
+                        <div class="form-group">
+                            <label>Título do Chamado *</label>
+                            <input type="text" id="ticketTitle" class="input-field" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Categoria *</label>
+                            <select id="ticketCategory" class="input-field" required>
+                                <option value="">Selecione...</option>
+                                <option value="Suporte Técnico">Suporte Técnico</option>
+                                <option value="Desenvolvimento">Desenvolvimento</option>
+                                <option value="Infraestrutura">Infraestrutura</option>
+                                <option value="Manutenção">Manutenção</option>
+                                <option value="Consultoria">Consultoria</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Prioridade *</label>
+                            <select id="ticketPriority" class="input-field" required>
+                                <option value="Baixa">Baixa</option>
+                                <option value="Média">Média</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Urgente">Urgente</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição *</label>
+                            <textarea id="ticketDescription" class="input-field" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">Criar Chamado</button>
+                    </form>
                 </div>
-            </form>
+            </div>
+
+            <!-- Meus Chamados Tab -->
+            <div id="meusTab" class="tab-content">
+                <div class="tickets-list">
+                    <h2>Meus Chamados</h2>
+                    <div id="myTicketsList"></div>
+                </div>
+            </div>
+
+            <!-- Todos os Chamados Tab -->
+            <div id="todosTab" class="tab-content">
+                <div class="tickets-list">
+                    <h2>Todos os Chamados</h2>
+                    <div class="filters">
+                        <select id="filterStatus" class="input-field" onchange="filterTickets()">
+                            <option value="">Todos os Status</option>
+                            <option value="Aberto">Aberto</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Aguardando">Aguardando</option>
+                            <option value="Resolvido">Resolvido</option>
+                            <option value="Fechado">Fechado</option>
+                        </select>
+                        <select id="filterPriority" class="input-field" onchange="filterTickets()">
+                            <option value="">Todas as Prioridades</option>
+                            <option value="Baixa">Baixa</option>
+                            <option value="Média">Média</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Urgente">Urgente</option>
+                        </select>
+                    </div>
+                    <div id="allTicketsList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Detalhes do Chamado -->
+        <div id="ticketModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <div id="ticketDetails"></div>
+            </div>
         </div>
     </div>
 
-    <script src="sistema-chamados-funcional.js"></script>
+    <script src="npd-uniselva.js"></script>
 </body>
+
 </html>
